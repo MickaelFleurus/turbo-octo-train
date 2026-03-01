@@ -12,7 +12,8 @@ export default function Header({ title }: HeaderProps) {
             <h1>{title}</h1>
             <nav>
                 <Link href="/">Home</Link> |{" "}
-                <Link href="/dash">Dashboard</Link>
+                <Link href="/snake">Snake</Link> |{" "}
+                <Link href="/tetris">Tetris</Link> |{" "}
             </nav>
             <hr />
         </header>

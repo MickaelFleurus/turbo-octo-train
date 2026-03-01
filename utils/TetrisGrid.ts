@@ -1,47 +1,67 @@
-export class TetrisGrid {
-    GRID_WIDTH = 10;
-    GRID_HEIGHT = 20;
+import { TetrisGameConstants } from "./TetrisConstants";
 
-    grid: Array<boolean>;
+
+export type Coordinate = [number, number];
+
+export class TetrisGrid {
+    grid: Array<Array<boolean>>;
 
     constructor() {
-        this.grid = new Array<boolean>(this.GRID_WIDTH * this.GRID_HEIGHT).fill(false);
+        this.grid = Array.from({ length: TetrisGameConstants.GRID_HEIGHT }, () => Array(TetrisGameConstants.GRID_WIDTH).fill(false));
     }
 
-    setValue(x: number, y: number, state: boolean) {
+    setValue(coord: Coordinate, state: boolean) {
+        const x = coord[0];
+        const y = coord[1];
         if (x < 0 || y < 0)
             return;
-        if (x + y * this.GRID_WIDTH > this.GRID_HEIGHT * this.GRID_WIDTH)
+        if (x > TetrisGameConstants.GRID_WIDTH || y > TetrisGameConstants.GRID_HEIGHT)
             return;
 
-        this.grid[x + y * this.GRID_WIDTH] = state;
+        this.grid[y][x] = state;
+    }
+
+    value(coord: Coordinate) {
+        const x = coord[0];
+        const y = coord[1];
+        if (x < 0)
+            return true;
+        if (x >= TetrisGameConstants.GRID_WIDTH || y >= TetrisGameConstants.GRID_HEIGHT)
+            return true;
+        if (y < 0)
+            return false;
+
+        return this.grid[y][x];
     }
 
     verifyCompleteLines() {
-        for (let j = this.GRID_HEIGHT; j >= 0; --j) {
-            let full = true;
-            for (let i = 0; i < this.GRID_WIDTH; ++i) {
-                if (this.grid[i + j * this.GRID_WIDTH] === false) {
-                    break;
-                }
-            }
+        let completedLine = 0;
+        for (let j = TetrisGameConstants.GRID_HEIGHT - 1; j >= 0; --j) {
+            let full = this.grid[j].every(element => { return element; })
+
             if (full) {
+                completedLine++;
                 if (j == 0) {
-                    for (let i = 0; i < this.GRID_WIDTH; ++i) {
-                        this.grid[i + j * this.GRID_WIDTH] = false;
-                    }
+                    this.grid[j].fill(false);
                 } else {
-                    let lineAbove = j - 1;
-                    for (let i = 0; i < this.GRID_WIDTH; ++i) {
-                        this.grid[i + j * this.GRID_WIDTH] = this.grid[i + lineAbove * this.GRID_WIDTH];
+                    for (let j2 = j; j2 > 0; j2--) {
+                        let lineAbove = j2 - 1;
+                        this.grid[j2] = this.grid[lineAbove].slice();
                     }
                 }
+                j++;
             }
         }
+        return completedLine;
     }
 
-    canMoveTo(itemIndexes: Array<number>) {
-        return itemIndexes.every(index => { return this.grid[index] == false; });
+
+    areCellsFree(itemIndexes: Array<Coordinate>) {
+        return itemIndexes.every(coordinates => { return this.grid[coordinates[1]][coordinates[0]] == false; });
+    }
+
+    resetGrid() {
+        this.grid = Array.from({ length: TetrisGameConstants.GRID_HEIGHT }, () => Array(TetrisGameConstants.GRID_WIDTH).fill(false));
     }
 
 }

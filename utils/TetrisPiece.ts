@@ -1,14 +1,25 @@
 import { TetrisGameConstants } from "./TetrisConstants";
-import { TetrisGrid } from "./TetrisGrid";
+import { TetrisGrid, Coordinate } from "./TetrisGrid";
 
 export enum TetrisPieceType {
-    T,
     L,
     ReverseL,
     I,
     Cube,
     N,
-    ReverseN
+    ReverseN,
+    Tee,
+}
+
+export enum TryFallResult {
+    Fell,
+    Stuck,
+    Lost
+}
+
+export function getRandomEnumValue<T>(enumObj: any): T {
+    const values = Object.values(enumObj).filter(v => typeof v === 'number');
+    return values[Math.floor(Math.random() * values.length)] as T;
 }
 
 enum PieceOrientation {
@@ -28,74 +39,157 @@ function getNextRotation(orientation: PieceOrientation, clockwise: boolean) {
     }
 }
 
-function getPiecePositions(orientation: PieceOrientation, position: number, type: TetrisPieceType) {
+function getPiecePositions(orientation: PieceOrientation, position: Coordinate, type: TetrisPieceType): Coordinate[] {
+    let x = position[0];
+    let y = position[1];
     if (type === TetrisPieceType.Cube) {
-        return [position, position + 1, position - TetrisGameConstants.GRID_WIDTH, position - TetrisGameConstants.GRID_WIDTH + 1];
+        return [position, [x + 1, y], [x, y + 1], [x + 1, y + 1]];
     }
-    if (type === TetrisPieceType.I) {
+    else if (type === TetrisPieceType.I) {
         if (orientation === PieceOrientation.MinusNinty || orientation === PieceOrientation.Ninety) {
-            return [position, position - 1, position + 1, position + 2];
+            if (x >= TetrisGameConstants.GRID_WIDTH - 2)
+                x = TetrisGameConstants.GRID_WIDTH - 3;
+            if (x == 0)
+                x = 1;
+            return [[x, y], [x - 1, y], [x + 1, y], [x + 2, y]];
         }
         else {
-            return [position, position - TetrisGameConstants.GRID_WIDTH, position + TetrisGameConstants.GRID_WIDTH, position + 2 * TetrisGameConstants.GRID_WIDTH];
+            if (y >= TetrisGameConstants.GRID_HEIGHT - 2)
+                y = TetrisGameConstants.GRID_HEIGHT - 3;
+            return [[x, y], [x, y - 1], [x, y + 1], [x, y + 2]];
         }
     }
-    if (type === TetrisPieceType.T) {
+    else if (type === TetrisPieceType.Tee) {
         switch (orientation) {
             case PieceOrientation.Zero:
-                return [position, position - 1, position + 1, position + TetrisGameConstants.GRID_WIDTH];
+                if (x + 1 >= TetrisGameConstants.GRID_WIDTH)
+                    x = TetrisGameConstants.GRID_WIDTH - 2;
+                if (x == 0)
+                    x = 1;
+                if (y + 1 >= TetrisGameConstants.GRID_HEIGHT)
+                    y = TetrisGameConstants.GRID_HEIGHT - 2;
+                return [[x, y], [x - 1, y], [x + 1, y], [x, y + 1]];
+
             case PieceOrientation.MinusNinty:
-                return [position, position + 1, position - TetrisGameConstants.GRID_WIDTH, position + TetrisGameConstants.GRID_WIDTH];
+                if (x + 1 >= TetrisGameConstants.GRID_WIDTH)
+                    x = TetrisGameConstants.GRID_WIDTH - 2;
+                if (y + 1 >= TetrisGameConstants.GRID_HEIGHT)
+                    y = TetrisGameConstants.GRID_HEIGHT - 2;
+                return [[x, y], [x + 1, y], [x, y - 1], [x, y + 1]];
+
             case PieceOrientation.Ninety:
-                return [position, position - 1, position - TetrisGameConstants.GRID_WIDTH, position + TetrisGameConstants.GRID_WIDTH];
+                if (x == 0)
+                    x = 1;
+                if (y + 1 >= TetrisGameConstants.GRID_HEIGHT)
+                    y = TetrisGameConstants.GRID_HEIGHT - 2;
+                return [[x, y], [x - 1, y], [x, y - 1], [x, y + 1]];
+
             case PieceOrientation.OneEighty:
-                return [position, position - 1, position + 1, position - TetrisGameConstants.GRID_WIDTH];
+                if (x + 1 >= TetrisGameConstants.GRID_WIDTH)
+                    x = TetrisGameConstants.GRID_WIDTH - 2;
+                if (x == 0)
+                    x = 1;
+                return [[x, y], [x - 1, y], [x + 1, y], [x, y - 1]];
         }
     }
-    if (type === TetrisPieceType.N) {
+    else if (type === TetrisPieceType.N) {
         switch (orientation) {
             case PieceOrientation.Zero:
-            case PieceOrientation.OneEighty:
-                return [position, position - 1, position - TetrisGameConstants.GRID_WIDTH - 1, position - TetrisGameConstants.GRID_WIDTH];
+            case PieceOrientation.OneEighty: {
+                if (x == 0)
+                    x = 1;
+                return [[x, y], [x, y - 1], [x - 1, y], [x - 1, y + 1]];
+            }
             case PieceOrientation.MinusNinty:
-            case PieceOrientation.Ninety:
-                return [position, position - 1, position + TetrisGameConstants.GRID_WIDTH, position + TetrisGameConstants.GRID_WIDTH + 1];
+            case PieceOrientation.Ninety: {
+                if (x == 0)
+                    x = 1;
+                if (x + 1 >= TetrisGameConstants.GRID_WIDTH)
+                    x = TetrisGameConstants.GRID_WIDTH - 2;
+                if (y + 1 >= TetrisGameConstants.GRID_HEIGHT)
+                    y = TetrisGameConstants.GRID_HEIGHT - 2;
+                return [[x, y], [x - 1, y], [x, y + 1], [x + 1, y + 1]];
+            }
         }
     }
 
-    if (type === TetrisPieceType.ReverseN) {
+    else if (type === TetrisPieceType.ReverseN) {
         switch (orientation) {
             case PieceOrientation.Zero:
-            case PieceOrientation.OneEighty:
-                return [position, position + 1, position - TetrisGameConstants.GRID_WIDTH, position + TetrisGameConstants.GRID_WIDTH + 1];
+            case PieceOrientation.OneEighty: {
+                if (x + 1 >= TetrisGameConstants.GRID_WIDTH)
+                    x = TetrisGameConstants.GRID_WIDTH - 2;
+                if (y + 1 >= TetrisGameConstants.GRID_HEIGHT)
+                    y = TetrisGameConstants.GRID_HEIGHT - 2;
+                return [[x, y], [x, y - 1], [x + 1, y], [x + 1, y + 1]];
+            }
             case PieceOrientation.MinusNinty:
-            case PieceOrientation.Ninety:
-                return [position, position + 1, position + TetrisGameConstants.GRID_WIDTH, position + TetrisGameConstants.GRID_WIDTH - 1];
+            case PieceOrientation.Ninety: {
+                if (x == 0)
+                    x = 1;
+                if (x + 1 >= TetrisGameConstants.GRID_WIDTH)
+                    x = TetrisGameConstants.GRID_WIDTH - 2;
+                if (y + 1 >= TetrisGameConstants.GRID_HEIGHT)
+                    y = TetrisGameConstants.GRID_HEIGHT - 2;
+                return [[x, y], [x + 1, y], [x, y + 1], [x - 1, y + 1]];
+            }
         }
     }
 
-    if (type === TetrisPieceType.L) {
+    else if (type === TetrisPieceType.L) {
         switch (orientation) {
             case PieceOrientation.Zero:
-                return [position, position + 1, position - TetrisGameConstants.GRID_WIDTH, position - 2 * TetrisGameConstants.GRID_WIDTH];
+                if (x >= TetrisGameConstants.GRID_WIDTH - 1)
+                    x = TetrisGameConstants.GRID_WIDTH - 2;
+                return [[x, y], [x + 1, y], [x, y - 1], [x, y - 2]];
+
             case PieceOrientation.OneEighty:
-                return [position, position - 1, position + TetrisGameConstants.GRID_WIDTH, position + 2 * TetrisGameConstants.GRID_WIDTH];
+                if (x == 0)
+                    x = 1;
+                if (y >= TetrisGameConstants.GRID_HEIGHT - 2)
+                    y = TetrisGameConstants.GRID_HEIGHT - 3;
+                return [[x, y], [x - 1, y], [x, y + 1], [x, y + 2]];
+
             case PieceOrientation.MinusNinty:
-                return [position, position - 1, position - 2, position - TetrisGameConstants.GRID_WIDTH];
+                if (x < 2)
+                    x = 2;
+
+                return [[x, y], [x - 1, y], [x - 2, y], [x, y - 1]];
+
             case PieceOrientation.Ninety:
-                return [position, position + 1, position + 2, position + TetrisGameConstants.GRID_WIDTH];
+                if (x >= TetrisGameConstants.GRID_WIDTH - 2)
+                    x = TetrisGameConstants.GRID_WIDTH - 3;
+                if (y + 1 >= TetrisGameConstants.GRID_HEIGHT)
+                    y = TetrisGameConstants.GRID_HEIGHT - 2;
+                return [[x, y], [x + 1, y], [x + 2, y], [x, y + 1]];
         }
     }
-    if (type === TetrisPieceType.ReverseL) {
+    else { //if (type === TetrisPieceType.ReverseL) {
         switch (orientation) {
             case PieceOrientation.Zero:
-                return [position, position - 1, position - TetrisGameConstants.GRID_WIDTH, position - 2 * TetrisGameConstants.GRID_WIDTH];
+                if (x == 0)
+                    x = 1;
+                return [[x, y], [x - 1, y], [x, y - 1], [x, y - 2]];
+
             case PieceOrientation.OneEighty:
-                return [position, position + 1, position + TetrisGameConstants.GRID_WIDTH, position + 2 * TetrisGameConstants.GRID_WIDTH];
+                if (x >= TetrisGameConstants.GRID_WIDTH - 1)
+                    x = TetrisGameConstants.GRID_WIDTH - 2;
+                if (y >= TetrisGameConstants.GRID_HEIGHT - 2)
+                    y = TetrisGameConstants.GRID_HEIGHT - 3;
+
+                return [[x, y], [x + 1, y], [x, y + 1], [x, y + 2]];
+
             case PieceOrientation.MinusNinty:
-                return [position, position - 1, position - 2, position + TetrisGameConstants.GRID_WIDTH];
+
+                if (x <= 1)
+                    x = 2;
+                return [[x, y], [x - 1, y], [x - 2, y], [x, y + 1]];
+
             case PieceOrientation.Ninety:
-                return [position, position + 1, position + 2, position - TetrisGameConstants.GRID_WIDTH];
+
+                if (x >= TetrisGameConstants.GRID_WIDTH - 2)
+                    x = TetrisGameConstants.GRID_WIDTH - 3;
+                return [[x, y], [x + 1, y], [x + 2, y], [x, y - 1]];
         }
     }
 }
@@ -104,75 +198,127 @@ function getPiecePositions(orientation: PieceOrientation, position: number, type
 
 export class TetrisPiece {
     readonly type: TetrisPieceType;
-    position: number;
+    position: Coordinate;
     orientation: PieceOrientation;
+    private grid: TetrisGrid;
 
 
-    constructor(type: TetrisPieceType) {
+    constructor(type: TetrisPieceType, grid: TetrisGrid) {
         this.type = type;
+        this.grid = grid;
         this.orientation = PieceOrientation.Zero;
-        this.position = -TetrisGameConstants.GRID_WIDTH / 2;
+        this.position = [TetrisGameConstants.GRID_WIDTH / 2, 0];
     }
 
-    canRotate(clockwise: boolean, grid: TetrisGrid) {
+    canRotate(clockwise: boolean) {
+        let canRotate = false;
+        let currentPositions = getPiecePositions(this.orientation, this.position, this.type);
         let nextRotation = getNextRotation(this.orientation, clockwise);
-
+        let rotatedPosition = getPiecePositions(nextRotation, this.position, this.type);
+        if (rotatedPosition && currentPositions) {
+            currentPositions.forEach(index => {
+                this.grid.setValue(index, false);
+            });
+            canRotate = rotatedPosition?.every(index => { return this.grid.value(index) == false; });
+            currentPositions.forEach(index => {
+                this.grid.setValue(index, true);
+            });
+        }
+        return canRotate;
     }
 
     rotate(clockwise: boolean) {
+        let nextRotation = getNextRotation(this.orientation, clockwise);
+        let rotatedPositions = getPiecePositions(nextRotation, this.position, this.type);
+        let currentPositions = getPiecePositions(this.orientation, this.position, this.type);
 
+        if (rotatedPositions && currentPositions) {
+            currentPositions.forEach(index => { this.grid.setValue(index, false) });
 
+            let canRotate = rotatedPositions?.every(index => { return this.grid.value(index) == false; });
+            if (!canRotate) {
+                if (!this.tryMove(-1, rotatedPositions)) {
+                    if (!this.tryMove(1, rotatedPositions)) {
+                        currentPositions.forEach(index => { this.grid.setValue(index, true) });
+                        return false;
+                    }
+                }
+                rotatedPositions = getPiecePositions(nextRotation, this.position, this.type);
+                if (!rotatedPositions) {
+                    currentPositions.forEach(index => { this.grid.setValue(index, true) });
+                    return false;
+                }
+            }
+            rotatedPositions.forEach(index => { this.grid.setValue(index, true) });
+            this.orientation = nextRotation;
+            if (rotatedPositions) {
+                this.position = rotatedPositions[0];
+            }
+        }
+    }
+
+    tryFall() {
+        let currentPositions = getPiecePositions(this.orientation, this.position, this.type);
+        console.log(currentPositions);
+        currentPositions?.forEach(coord => {
+            this.grid.setValue(coord, false);
+        });
+
+        let nextPositions = currentPositions?.map(coord => [coord[0], coord[1] + 1] as Coordinate);
+        let canFall = nextPositions?.every(index => {
+            return !this.grid.value(index);
+        });
+        if (canFall) {
+            nextPositions?.forEach(index => { this.grid.setValue(index, true) });
+            this.position[1]++;
+            return TryFallResult.Fell;
+
+        } else {
+            currentPositions?.forEach(index => {
+                this.grid.setValue(index, true);
+            });
+            let isAboveGrid = currentPositions?.some(index => { return index[1] < 0; })
+            if (isAboveGrid)
+                return TryFallResult.Lost;
+            else
+                return TryFallResult.Stuck;
+        }
+    }
+
+    tryMoveLeft() {
+        let currentPositions = getPiecePositions(this.orientation, this.position, this.type);
+        if (currentPositions)
+            return this.tryMove(-1, currentPositions);
+        return false;
+    }
+
+    tryMoveRight() {
+        let currentPositions = getPiecePositions(this.orientation, this.position, this.type);
+        if (currentPositions)
+            return this.tryMove(1, currentPositions);
+        return false;
+    }
+
+    tryMove(direction: number, currentPositions: Array<Coordinate>) {
+        if (currentPositions) {
+            let currentPositionActive = currentPositions.some(index => { return this.grid.value(index); });
+            if (currentPositionActive)
+                currentPositions.forEach(index => { this.grid.setValue(index, false) });
+            let nextPositions = currentPositions.map(coord => [coord[0] + 1 * direction, coord[1]] as Coordinate);
+            const canMove = nextPositions.every(coord => {
+                return !this.grid.value(coord);
+            });
+            if (canMove) {
+                if (currentPositionActive)
+                    nextPositions.forEach(index => { this.grid.setValue(index, true) });
+                this.position = nextPositions[0];
+                return true;
+            }
+            else {
+                if (currentPositionActive)
+                    currentPositions.forEach(index => { this.grid.setValue(index, true) });
+                return false;
+            }
+        }
     }
 }
-
-
-/* 
-
-switch (type) {
-    case TetrisPieceType.Cube:
-        this.positions.push(-TetrisGameConstants.GRID_WIDTH / 2);
-        this.positions.push(-TetrisGameConstants.GRID_WIDTH / 2 + 1);
-        this.positions.push(TetrisGameConstants.GRID_WIDTH / 2);
-        this.positions.push(TetrisGameConstants.GRID_WIDTH / 2 + 1);
-        break;
-
-    case TetrisPieceType.I:
-        this.positions.push(TetrisGameConstants.GRID_WIDTH / 2);
-        this.positions.push(-TetrisGameConstants.GRID_WIDTH / 2);
-        this.positions.push(-TetrisGameConstants.GRID_WIDTH / 2 - TetrisGameConstants.GRID_HEIGHT);
-        this.positions.push(-TetrisGameConstants.GRID_WIDTH / 2 - TetrisGameConstants.GRID_HEIGHT * 2);
-        break;
-    // TODO: Nexts pieces are not correct
-    case TetrisPieceType.T:
-        this.positions.push(TetrisGameConstants.GRID_WIDTH / 2);
-        this.positions.push(-TetrisGameConstants.GRID_WIDTH / 2);
-        this.positions.push(-TetrisGameConstants.GRID_WIDTH / 2 - TetrisGameConstants.GRID_HEIGHT);
-        this.positions.push(-TetrisGameConstants.GRID_WIDTH / 2 - TetrisGameConstants.GRID_HEIGHT * 2);
-        break;
-    case TetrisPieceType.L:
-        this.positions.push(TetrisGameConstants.GRID_WIDTH / 2);
-        this.positions.push(-TetrisGameConstants.GRID_WIDTH / 2);
-        this.positions.push(-TetrisGameConstants.GRID_WIDTH / 2 - TetrisGameConstants.GRID_HEIGHT);
-        this.positions.push(-TetrisGameConstants.GRID_WIDTH / 2 - TetrisGameConstants.GRID_HEIGHT * 2);
-        break;
-    case TetrisPieceType.N:
-        this.positions.push(TetrisGameConstants.GRID_WIDTH / 2);
-        this.positions.push(-TetrisGameConstants.GRID_WIDTH / 2);
-        this.positions.push(-TetrisGameConstants.GRID_WIDTH / 2 - TetrisGameConstants.GRID_HEIGHT);
-        this.positions.push(-TetrisGameConstants.GRID_WIDTH / 2 - TetrisGameConstants.GRID_HEIGHT * 2);
-        break;
-    case TetrisPieceType.ReverseL:
-        this.positions.push(TetrisGameConstants.GRID_WIDTH / 2);
-        this.positions.push(-TetrisGameConstants.GRID_WIDTH / 2);
-        this.positions.push(-TetrisGameConstants.GRID_WIDTH / 2 - TetrisGameConstants.GRID_HEIGHT);
-        this.positions.push(-TetrisGameConstants.GRID_WIDTH / 2 - TetrisGameConstants.GRID_HEIGHT * 2);
-        break;
-    case TetrisPieceType.ReverseN:
-        this.positions.push(TetrisGameConstants.GRID_WIDTH / 2);
-        this.positions.push(-TetrisGameConstants.GRID_WIDTH / 2);
-        this.positions.push(-TetrisGameConstants.GRID_WIDTH / 2 - TetrisGameConstants.GRID_HEIGHT);
-        this.positions.push(-TetrisGameConstants.GRID_WIDTH / 2 - TetrisGameConstants.GRID_HEIGHT * 2);
-        break;
-}
-
-*/
