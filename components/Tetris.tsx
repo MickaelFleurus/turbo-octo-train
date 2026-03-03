@@ -1,35 +1,36 @@
 "use client"
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { TetrisGrid } from '@/utils/TetrisGrid';
-import { TetrisPiece, TetrisPieceType, TryFallResult, getRandomEnumValue } from '@/utils/TetrisPiece';
+import { TetrisGrid, GridCell } from '@/utils/TetrisGrid';
+import { TetrisPiece, TetrisPieceType, TryFallResult, getRandomEnumValue, getPieceColor } from '@/utils/TetrisPiece';
 import { TetrisGameConstants } from '@/utils/TetrisConstants';
 
 type Direction = 'LEFT' | 'RIGHT' | 'NONE';
 type Action = "ROTATE_CLOCKWISE" | "ROTATE_COUNTERCLOCKWISE" | 'PLACE' | 'NONE';
 
 
+
 const CELL_SIZE = 30;
 
 const Tetris: React.FC = () => {
-    const [gridState, setGridState] = useState<Array<Array<boolean>>>(Array.from({ length: TetrisGameConstants.GRID_HEIGHT }, () => Array(TetrisGameConstants.GRID_WIDTH).fill(false)));
+    const [gridState, setGridState] = useState<Array<Array<GridCell>>>(Array.from({ length: TetrisGameConstants.GRID_HEIGHT }, () => Array(TetrisGameConstants.GRID_WIDTH).fill({ filled: false, color: "#000" })));
     const gridRef = useRef<TetrisGrid>(new TetrisGrid());
     const [currentTetromino, setCurrentTetromino] = useState<TetrisPiece>(new TetrisPiece(getRandomEnumValue<TetrisPieceType>(TetrisPieceType), gridRef.current));
     const action = useRef<Action>('NONE');
     const direction = useRef<Direction>('NONE');
-    const [started, setStarted] = useState(false);
+    const [playing, setPlaying] = useState(false);
     const [gameOver, setGameOver] = useState(false);
     const [score, setScore] = useState(0);
     const lastFallTimeRef = useRef<number>(0);
     const fallInterval = useRef<number>(250);
     const lastMoveTimeRef = useRef<number>(0);
-    const moveInterval = 100;
+    const moveInterval = 150;
     const [nextPieces, setNextPieces] = useState<Array<TetrisPieceType>>(new Array<TetrisPieceType>(3));
     const nextPiecesRef = useRef<Array<TetrisPieceType>>(new Array<TetrisPieceType>(3));
     const stuckCountRef = useRef<number>(0);
+    const startedRef = useRef<boolean>(false);
 
 
     const selectNextPieceRef = useCallback(() => {
-
         const nextPiece = nextPiecesRef.current.shift();
         if (nextPiece !== undefined)
             setCurrentTetromino(new TetrisPiece(nextPiece, gridRef.current));
@@ -40,9 +41,11 @@ const Tetris: React.FC = () => {
 
     // Game loop
     useEffect(() => {
-        if (gameOver || !started) return;
+        if (gameOver || !playing) return;
         let hasChanged = false;
         const interval = setInterval(() => {
+            if (!playing)
+                return;
             const now = Date.now();
 
             // Handle piece falling
@@ -77,9 +80,9 @@ const Tetris: React.FC = () => {
 
             }
             if (action.current != 'NONE') {
-                if (action.current === 'ROTATE_CLOCKWISE' && currentTetromino.canRotate(true)) {
+                if (action.current === 'ROTATE_CLOCKWISE') {
                     currentTetromino.rotate(true);
-                } else if (action.current === 'ROTATE_COUNTERCLOCKWISE' && currentTetromino.canRotate(false)) {
+                } else if (action.current === 'ROTATE_COUNTERCLOCKWISE') {
                     currentTetromino.rotate(false);
                 } else if (action.current === 'PLACE') {
                     fallInterval.current = 10;
@@ -93,11 +96,20 @@ const Tetris: React.FC = () => {
 
 
         return () => clearInterval(interval);
-    }, [gameOver, currentTetromino, started]);
+    }, [gameOver, currentTetromino, playing]);
 
     // Handle keyboard input
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key == "Escape") {
+                setPlaying(!playing);
+                e.preventDefault();
+                return;
+            }
+
+            if (!playing)
+                return;
+
             switch (e.key) {
                 case 'ArrowLeft':
                     direction.current = 'LEFT';
@@ -137,7 +149,7 @@ const Tetris: React.FC = () => {
             window.removeEventListener('keydown', handleKeyDown);
             window.removeEventListener('keyup', handleKeyUp);
         };
-    }, []);
+    }, [playing]);
 
     const resetGame = () => {
         direction.current = 'NONE';
@@ -145,10 +157,12 @@ const Tetris: React.FC = () => {
         setGridState([...gridRef.current.grid]);
         setGameOver(false);
         setScore(0);
-        setStarted(true);
+        setPlaying(true);
         nextPiecesRef.current = new Array<TetrisPieceType>(getRandomEnumValue<TetrisPieceType>(TetrisPieceType), getRandomEnumValue<TetrisPieceType>(TetrisPieceType), getRandomEnumValue<TetrisPieceType>(TetrisPieceType));
         setNextPieces([...nextPiecesRef.current]);
         selectNextPieceRef();
+        startedRef.current = true;
+        action.current = "NONE";
     };
 
     return (
@@ -166,8 +180,8 @@ const Tetris: React.FC = () => {
                                     top: y * CELL_SIZE,
                                     width: CELL_SIZE,
                                     height: CELL_SIZE,
-                                    backgroundColor: cell ? '#00ff00' : '#1a1a1a',
-                                    border: cell ? 'none' : '1px solid #444444',
+                                    backgroundColor: cell.filled ? cell.color : '#1a1a1a',
+                                    border: cell.filled ? 'none' : '1px solid #444444',
                                     boxSizing: 'border-box',
                                 }}
                             />
@@ -180,48 +194,52 @@ const Tetris: React.FC = () => {
                         <legend>Next pieces:</legend>
                         <div className="relative border box-border" style={{ backgroundColor: '#1a1a1a' }}>
                             {nextPieces.map((piece, idx) => {
-                                const getPieceLook = (piece: TetrisPieceType): boolean[] => {
-                                    let look = new Array<boolean>(16);
-                                    look.fill(false);
+                                const getPieceLook = (piece: TetrisPieceType): Array<GridCell> => {
+                                    let look = new Array<GridCell>(16);
+                                    look.fill({ filled: false, color: '#1a1a1a' });
+                                    const pieceColor = getPieceColor(piece);
                                     switch (piece) {
-                                        case TetrisPieceType.Tee:
-                                            look[1] = true;
-                                            look[5] = true;
-                                            look[9] = true;
-                                            look[6] = true;
+                                        case TetrisPieceType.T:
+                                            look[1] = { filled: true, color: pieceColor };
+                                            look[5] = { filled: true, color: pieceColor };
+                                            look[9] = { filled: true, color: pieceColor };
+                                            look[6] = { filled: true, color: pieceColor };
                                             break;
                                         case TetrisPieceType.L:
-                                            look[1] = true;
-                                            look[5] = true;
-                                            look[9] = true;
-                                            look[10] = true;
+                                            look[1] = { filled: true, color: pieceColor };
+                                            look[5] = { filled: true, color: pieceColor };
+                                            look[9] = { filled: true, color: pieceColor };
+                                            look[10] = { filled: true, color: pieceColor };
                                             break;
                                         case TetrisPieceType.ReverseL:
-                                            look[2] = true;
-                                            look[6] = true;
-                                            look[10] = true;
-                                            look[9] = true;
+                                            look[2] = { filled: true, color: pieceColor };
+                                            look[6] = { filled: true, color: pieceColor };
+                                            look[10] = { filled: true, color: pieceColor };
+                                            look[9] = { filled: true, color: pieceColor };
                                             break;
                                         case TetrisPieceType.I:
-                                            look.fill(true, 4, 8);
+                                            look[2] = { filled: true, color: pieceColor };
+                                            look[6] = { filled: true, color: pieceColor };
+                                            look[10] = { filled: true, color: pieceColor };
+                                            look[14] = { filled: true, color: pieceColor };
                                             break;
                                         case TetrisPieceType.Cube:
-                                            look[5] = true;
-                                            look[6] = true;
-                                            look[9] = true;
-                                            look[10] = true;
+                                            look[5] = { filled: true, color: pieceColor };
+                                            look[6] = { filled: true, color: pieceColor };
+                                            look[9] = { filled: true, color: pieceColor };
+                                            look[10] = { filled: true, color: pieceColor };
                                             break;
                                         case TetrisPieceType.N:
-                                            look[2] = true;
-                                            look[5] = true;
-                                            look[6] = true;
-                                            look[9] = true;
+                                            look[2] = { filled: true, color: pieceColor };
+                                            look[5] = { filled: true, color: pieceColor };
+                                            look[6] = { filled: true, color: pieceColor };
+                                            look[9] = { filled: true, color: pieceColor };
                                             break;
                                         case TetrisPieceType.ReverseN:
-                                            look[1] = true;
-                                            look[5] = true;
-                                            look[6] = true;
-                                            look[10] = true;
+                                            look[1] = { filled: true, color: pieceColor };
+                                            look[5] = { filled: true, color: pieceColor };
+                                            look[6] = { filled: true, color: pieceColor };
+                                            look[10] = { filled: true, color: pieceColor };
                                             break;
                                     }
                                     return look;
@@ -231,7 +249,7 @@ const Tetris: React.FC = () => {
 
                                 return (
                                     <div key={idx} className="mb-4" style={{ marginBottom: '1rem' }}>
-                                        <div className="relative border box-border" style={{ width: PREVIEW_CELL_SIZE * 4, height: PREVIEW_CELL_SIZE * 4, backgroundColor: '#1a1a1a' }}>
+                                        <div className="relative " style={{ width: PREVIEW_CELL_SIZE * 4, height: PREVIEW_CELL_SIZE * 4, backgroundColor: '#1a1a1a' }}>
                                             {pieceLook.map((cell, cellIdx) => {
                                                 const x = cellIdx % 4;
                                                 const y = Math.floor(cellIdx / 4);
@@ -244,8 +262,8 @@ const Tetris: React.FC = () => {
                                                             top: y * PREVIEW_CELL_SIZE,
                                                             width: PREVIEW_CELL_SIZE,
                                                             height: PREVIEW_CELL_SIZE,
-                                                            backgroundColor: cell ? '#00ff00' : '#1a1a1a',
-                                                            border: cell ? 'none' : '1px solid #444444',
+                                                            backgroundColor: cell.color,
+                                                            border: cell.filled ? 'none' : '1px solid #444444',
                                                         }}
                                                     />
                                                 );
@@ -259,12 +277,23 @@ const Tetris: React.FC = () => {
                 </div>
             </div >
             {
-                !started && (<div className="mt-4 text-center">
+                !startedRef.current && (<div className="mt-4 text-center">
                     <button
                         onClick={resetGame}
                         className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
                     >
                         Play!
+                    </button>
+                </div>)
+
+            }
+            {
+                startedRef.current && !playing && (<div className="mt-4 text-center">
+                    <button
+                        onClick={() => setPlaying(true)}
+                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+                    >
+                        Continue
                     </button>
                 </div>)
 

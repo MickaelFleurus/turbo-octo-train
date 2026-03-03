@@ -8,7 +8,7 @@ export enum TetrisPieceType {
     Cube,
     N,
     ReverseN,
-    Tee,
+    T,
 }
 
 export enum TryFallResult {
@@ -59,9 +59,16 @@ function getPiecePositions(orientation: PieceOrientation, position: Coordinate, 
             return [[x, y], [x, y - 1], [x, y + 1], [x, y + 2]];
         }
     }
-    else if (type === TetrisPieceType.Tee) {
+    else if (type === TetrisPieceType.T) {
         switch (orientation) {
             case PieceOrientation.Zero:
+                if (x + 1 >= TetrisGameConstants.GRID_WIDTH)
+                    x = TetrisGameConstants.GRID_WIDTH - 2;
+                if (y + 1 >= TetrisGameConstants.GRID_HEIGHT)
+                    y = TetrisGameConstants.GRID_HEIGHT - 2;
+                return [[x, y], [x + 1, y], [x, y - 1], [x, y + 1]];
+
+            case PieceOrientation.Ninety:
                 if (x + 1 >= TetrisGameConstants.GRID_WIDTH)
                     x = TetrisGameConstants.GRID_WIDTH - 2;
                 if (x == 0)
@@ -70,21 +77,14 @@ function getPiecePositions(orientation: PieceOrientation, position: Coordinate, 
                     y = TetrisGameConstants.GRID_HEIGHT - 2;
                 return [[x, y], [x - 1, y], [x + 1, y], [x, y + 1]];
 
-            case PieceOrientation.MinusNinty:
-                if (x + 1 >= TetrisGameConstants.GRID_WIDTH)
-                    x = TetrisGameConstants.GRID_WIDTH - 2;
-                if (y + 1 >= TetrisGameConstants.GRID_HEIGHT)
-                    y = TetrisGameConstants.GRID_HEIGHT - 2;
-                return [[x, y], [x + 1, y], [x, y - 1], [x, y + 1]];
-
-            case PieceOrientation.Ninety:
+            case PieceOrientation.OneEighty:
                 if (x == 0)
                     x = 1;
                 if (y + 1 >= TetrisGameConstants.GRID_HEIGHT)
                     y = TetrisGameConstants.GRID_HEIGHT - 2;
                 return [[x, y], [x - 1, y], [x, y - 1], [x, y + 1]];
 
-            case PieceOrientation.OneEighty:
+            case PieceOrientation.MinusNinty:
                 if (x + 1 >= TetrisGameConstants.GRID_WIDTH)
                     x = TetrisGameConstants.GRID_WIDTH - 2;
                 if (x == 0)
@@ -194,6 +194,25 @@ function getPiecePositions(orientation: PieceOrientation, position: Coordinate, 
     }
 }
 
+export function getPieceColor(type: TetrisPieceType): string {
+    switch (type) {
+        case TetrisPieceType.Cube:
+            return '#00e5ff';
+        case TetrisPieceType.I:
+            return '#ffff00';
+        case TetrisPieceType.L:
+            return '#ff0000';
+        case TetrisPieceType.N:
+            return '#0033ff';
+        case TetrisPieceType.ReverseL:
+            return '#00ff15';
+        case TetrisPieceType.ReverseN:
+            return '#f700ff';
+        case TetrisPieceType.T:
+            return '#00ffcc';
+
+    }
+}
 
 
 export class TetrisPiece {
@@ -201,6 +220,7 @@ export class TetrisPiece {
     position: Coordinate;
     orientation: PieceOrientation;
     private grid: TetrisGrid;
+    readonly color: string;
 
 
     constructor(type: TetrisPieceType, grid: TetrisGrid) {
@@ -208,23 +228,7 @@ export class TetrisPiece {
         this.grid = grid;
         this.orientation = PieceOrientation.Zero;
         this.position = [TetrisGameConstants.GRID_WIDTH / 2, 0];
-    }
-
-    canRotate(clockwise: boolean) {
-        let canRotate = false;
-        let currentPositions = getPiecePositions(this.orientation, this.position, this.type);
-        let nextRotation = getNextRotation(this.orientation, clockwise);
-        let rotatedPosition = getPiecePositions(nextRotation, this.position, this.type);
-        if (rotatedPosition && currentPositions) {
-            currentPositions.forEach(index => {
-                this.grid.setValue(index, false);
-            });
-            canRotate = rotatedPosition?.every(index => { return this.grid.value(index) == false; });
-            currentPositions.forEach(index => {
-                this.grid.setValue(index, true);
-            });
-        }
-        return canRotate;
+        this.color = getPieceColor(type);
     }
 
     rotate(clockwise: boolean) {
@@ -239,17 +243,17 @@ export class TetrisPiece {
             if (!canRotate) {
                 if (!this.tryMove(-1, rotatedPositions)) {
                     if (!this.tryMove(1, rotatedPositions)) {
-                        currentPositions.forEach(index => { this.grid.setValue(index, true) });
+                        currentPositions.forEach(index => { this.grid.setValue(index, true, this.color) });
                         return false;
                     }
                 }
                 rotatedPositions = getPiecePositions(nextRotation, this.position, this.type);
                 if (!rotatedPositions) {
-                    currentPositions.forEach(index => { this.grid.setValue(index, true) });
+                    currentPositions.forEach(index => { this.grid.setValue(index, true, this.color) });
                     return false;
                 }
             }
-            rotatedPositions.forEach(index => { this.grid.setValue(index, true) });
+            rotatedPositions.forEach(index => { this.grid.setValue(index, true, this.color) });
             this.orientation = nextRotation;
             if (rotatedPositions) {
                 this.position = rotatedPositions[0];
@@ -258,8 +262,7 @@ export class TetrisPiece {
     }
 
     tryFall() {
-        let currentPositions = getPiecePositions(this.orientation, this.position, this.type);
-        console.log(currentPositions);
+        const currentPositions = getPiecePositions(this.orientation, this.position, this.type);
         currentPositions?.forEach(coord => {
             this.grid.setValue(coord, false);
         });
@@ -269,13 +272,13 @@ export class TetrisPiece {
             return !this.grid.value(index);
         });
         if (canFall) {
-            nextPositions?.forEach(index => { this.grid.setValue(index, true) });
+            nextPositions?.forEach(index => { this.grid.setValue(index, true, this.color) });
             this.position[1]++;
             return TryFallResult.Fell;
 
         } else {
             currentPositions?.forEach(index => {
-                this.grid.setValue(index, true);
+                this.grid.setValue(index, true, this.color);
             });
             let isAboveGrid = currentPositions?.some(index => { return index[1] < 0; })
             if (isAboveGrid)
@@ -310,13 +313,13 @@ export class TetrisPiece {
             });
             if (canMove) {
                 if (currentPositionActive)
-                    nextPositions.forEach(index => { this.grid.setValue(index, true) });
+                    nextPositions.forEach(index => { this.grid.setValue(index, true, this.color) });
                 this.position = nextPositions[0];
                 return true;
             }
             else {
                 if (currentPositionActive)
-                    currentPositions.forEach(index => { this.grid.setValue(index, true) });
+                    currentPositions.forEach(index => { this.grid.setValue(index, true, this.color) });
                 return false;
             }
         }
