@@ -6,83 +6,112 @@ import chroma from 'chroma-js';
 import { Game2048Constants } from '@/utils/2048/Game2048Constants';
 
 type Direction = 'LEFT' | 'RIGHT' | 'UP' | 'DOWN';
-type Coordinate = [number, number];
 type Tile = {
+    id: number;
     value: number;
-    coord: Coordinate;
+    row: number;
+    col: number;
     isNew?: boolean;
 };
 
 const Game2048: React.FC = () => {
 
     const [gameOver, setGameOver] = useState(false);
-    const [grid, setGrid] = useState<Array<Array<number>>>(Array.from({ length: 4 }, () => Array(4).fill(0)));
+    const tileIdRef = useRef(0);
+    const [grid, setGrid] = useState<Array<Tile>>(new Array<Tile>());
     const transpose = (matrix: number[][]): number[][] => {
         return matrix[0].map((_, colIndex) => matrix.map(row => row[colIndex]));
     };
 
     const moveDirection = useCallback((direction: Direction) => {
-        if (!grid || grid.length === 0) return;  // Guard clause
+        if (!grid || grid.length === 0) return;
 
-        const compact = (line: number[]) => {
-            return line.filter(v => v !== 0);
-        };
-
-        const merge = (line: number[]) => {
-            for (let i = 0; i < line.length - 1; i++) {
-                if (line[i] === line[i + 1] && line[i] !== 0) {
-                    line[i] *= 2;
-                    line.splice(i + 1, 1);
+        let newTiles = grid.map(tile => ({ ...tile }));
+        let merged = new Set<number>();
+        if (direction === 'LEFT') {
+            for (let row = 0; row < 4; ++row) {
+                const rowTiles = newTiles.filter(tile => { return tile.row == row }).sort();
+                let col = 0;
+                for (let i = 0; i < rowTiles.length; i++) {
+                    if (i > 0 && rowTiles[i].value === rowTiles[i - 1].value && !merged.has(rowTiles[i - 1].id)) {
+                        rowTiles[i - 1].value *= 2;
+                        merged.add(rowTiles[i].id);
+                    } else {
+                        if (rowTiles[i].col !== col) {
+                            rowTiles[i].col = col;
+                        }
+                        col++;
+                    }
                 }
             }
-            return line;
-        };
-
-        const move = (line: number[]) => {
-            let compacted = compact(line);
-            let merged = merge(compacted);
-            while (merged.length < 4) merged.push(0);
-            return merged;
-        };
-
-        let newGrid = grid.map(row => [...row]);
-
-        if (direction === 'LEFT') {
-            newGrid = newGrid.map(row => move(row));
         } else if (direction === 'RIGHT') {
-            newGrid = newGrid.map(row => move(row.reverse()).reverse());
+            for (let row = 3; row >= 0; --row) {
+                const rowTiles = newTiles.filter(tile => { return tile.row == row }).sort((a, b) => { return b.col - a.col; });
+                let col = 3;
+                for (let i = 0; i < rowTiles.length; i++) {
+                    if (i > 0 && rowTiles[i].value === rowTiles[i - 1].value && !merged.has(rowTiles[i - 1].id)) {
+                        rowTiles[i - 1].value *= 2;
+                        merged.add(rowTiles[i].id);
+                    } else {
+                        if (rowTiles[i].col !== col) {
+                            rowTiles[i].col = col;
+                        }
+                        col--;
+                    }
+                }
+            }
         } else if (direction === 'UP') {
-            newGrid = transpose(newGrid);
-            newGrid = newGrid.map(row => move(row));
-            newGrid = transpose(newGrid);
+            for (let col = 0; col < 4; ++col) {
+                const colTiles = newTiles.filter(tile => { return tile.col == col }).sort();
+                let row = 0;
+                for (let i = 0; i < colTiles.length; i++) {
+                    if (i > 0 && colTiles[i].value === colTiles[i - 1].value && !merged.has(colTiles[i - 1].id)) {
+                        colTiles[i - 1].value *= 2;
+                        merged.add(colTiles[i].id);
+                    } else {
+                        if (colTiles[i].row !== row) {
+                            colTiles[i].row = row;
+                        }
+                        row++;
+                    }
+                }
+            }
         } else if (direction === 'DOWN') {
-            newGrid = transpose(newGrid);
-            newGrid = newGrid.map(row => move(row.reverse()).reverse());
-            newGrid = transpose(newGrid);
+            for (let col = 3; col >= 0; --col) {
+                const colTiles = newTiles.filter(tile => { return tile.col == col }).sort((a, b) => { return b.col - a.col; });
+                let row = 3;
+                for (let i = 0; i < colTiles.length; i++) {
+                    if (i > 0 && colTiles[i].value === colTiles[i - 1].value && !merged.has(colTiles[i - 1].id)) {
+                        colTiles[i - 1].value *= 2;
+                        merged.add(colTiles[i].id);
+                    } else {
+                        if (colTiles[i].row !== row) {
+                            colTiles[i].row = row;
+                        }
+                        row--;
+                    }
+                }
+            }
         }
+        const finalTiles = newTiles.filter(t => !merged.has(t.id));
 
+        // Spawn new tile
+        if (finalTiles.length < 16) {
+            let row: number, col: number;
+            do {
+                row = Math.floor(Math.random() * 4);
+                col = Math.floor(Math.random() * 4);
+            } while (finalTiles.some(t => t.row === row && t.col === col));
 
-        let freeCell = new Array<Coordinate>();
-
-        let j = 0;
-        newGrid.map(row => {
-            row.forEach((value, index) => {
-                if (value == 0)
-                    freeCell.push([j, index]);
+            finalTiles.push({
+                id: tileIdRef.current++,
+                value: 2,
+                row,
+                col,
+                isNew: true
             });
-            j++;
-        });
-
-
-        if (freeCell.length == 0 && newGrid.toString() == grid.toString()) {
-            setGameOver(true);
-        } else {
-            const index = Math.floor(freeCell.length * Math.random());
-            const cellCoord = freeCell[index];
-            newGrid[cellCoord[0]][cellCoord[1]] = 2;
         }
-
-        setGrid(newGrid);
+        setGrid(finalTiles);
     }, [grid]);
 
     // Handle keyboard input
@@ -120,12 +149,18 @@ const Game2048: React.FC = () => {
     const randomNumber = () => { return Math.floor(Math.random() * 4); }
 
     const resetGame = () => {
-        const newGrid = Array.from({ length: 4 }, () => Array(4).fill(0));
+        const newGrid = new Array<Tile>(2);
 
         setGameOver(false);
-        newGrid[randomNumber()][randomNumber()] = 2;
-        newGrid[randomNumber()][randomNumber()] = 2;
-
+        for (let i = 0; i < 2; i++) {
+            newGrid[i] = {
+                id: tileIdRef.current++,
+                value: 2,
+                row: randomNumber(),
+                col: randomNumber(),
+                isNew: true
+            };
+        }
         setGrid(newGrid);
         setGameOver(false);
     };
@@ -148,35 +183,58 @@ const Game2048: React.FC = () => {
         <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900">
             <div className="flex gap-8 items-start">
                 <div style={{
+                    position: 'relative',
+                    width: Game2048Constants.GRID_PADDING * 2 + 4 * Game2048Constants.CELL_SIZE + 3 * Game2048Constants.GAP,
+                    height: Game2048Constants.GRID_PADDING * 2 + 4 * Game2048Constants.CELL_SIZE + 3 * Game2048Constants.GAP,
+                    padding: `${Game2048Constants.GRID_PADDING}px`,
+                    backgroundColor: '#a44700',
+                    borderRadius: '8px',
                     display: 'grid',
                     gridTemplateColumns: 'repeat(4, 1fr)',
-                    gap: '12px',
-                    padding: '12px',
-                    width: Game2048Constants.GRID_SIZE,
-                    height: Game2048Constants.GRID_SIZE,
-                    backgroundColor: '#a44700',
-                    boxSizing: 'border-box', borderRadius: '8px'
+                    gap: `${Game2048Constants.GAP}px`
                 }}>
-                    {grid.flat().map((cell, idx) => (
-                        <div
-                            key={idx}
+                    {/* Grid background */}
+                    {Array.from({ length: 16 }).map((_, idx) => (
+                        <div key={`bg-${idx}`} style={{
+                            backgroundColor: '#ffffff22',
+                            borderRadius: '8px'
+                        }} />
+                    ))}
+
+                    {/* Animated tiles */}
+                    {grid.map(tile => (
+                        <motion.div
+                            key={tile.id}
+                            layoutId={`tile-${tile.id}`}
+                            initial={{
+                                scale: tile.isNew ? 0 : 1, opacity: 0,
+                                left: tile.col * (Game2048Constants.CELL_SIZE + 12) + 12,
+                                top: tile.row * (Game2048Constants.CELL_SIZE + 12) + 12
+                            }}
+                            animate={{
+                                scale: 1,
+                                opacity: 1,
+                                left: tile.col * (Game2048Constants.CELL_SIZE + 12) + 12,
+                                top: tile.row * (Game2048Constants.CELL_SIZE + 12) + 12
+                            }}
+                            exit={{ scale: 0, opacity: 0 }}
+                            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                             style={{
+                                position: 'absolute',
+                                width: Game2048Constants.CELL_SIZE,
+                                height: Game2048Constants.CELL_SIZE,
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                backgroundColor: cell == 0 ? '#ffffff22' : getColor(cell),
-                                border: '1px solid #444444',
+                                backgroundColor: getColor(tile.value),
                                 borderRadius: '8px',
-                                fontSize: '18px',
+                                fontSize: '24px',
                                 fontWeight: 'bold',
-                                color: '#ffffff',
-                                aspectRatio: '1 / 1',
-                                overflow: 'hidden',
-                                lineHeight: '1'
+                                color: '#ffffff'
                             }}
                         >
-                            {cell !== 0 && cell}
-                        </div>
+                            {tile.value}
+                        </motion.div>
                     ))}
                 </div>
 
