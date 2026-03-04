@@ -1,8 +1,8 @@
 "use client"
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { TetrisGrid, GridCell } from '@/utils/TetrisGrid';
-import { TetrisPiece, TetrisPieceType, TryFallResult, getRandomEnumValue, getPieceColor } from '@/utils/TetrisPiece';
-import { TetrisGameConstants } from '@/utils/TetrisConstants';
+import { TetrisGrid, GridCell } from '@/utils/tetris/TetrisGrid';
+import { TetrisPiece, TetrisPieceType, TryFallResult, getRandomEnumValue, getPieceColor } from '@/utils/tetris/TetrisPiece';
+import { TetrisGameConstants } from '@/utils/tetris/TetrisConstants';
 
 type Direction = 'LEFT' | 'RIGHT' | 'NONE';
 type Action = "ROTATE_CLOCKWISE" | "ROTATE_COUNTERCLOCKWISE" | 'PLACE' | 'NONE';
