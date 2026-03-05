@@ -15,6 +15,7 @@ export default function Header({ title }: HeaderProps) {
                 <Link href="/snake">Snake</Link> |{" "}
                 <Link href="/tetris">Tetris</Link> |{" "}
                 <Link href="/2048">2048</Link> |{" "}
+                <Link href="/perler">Perler</Link> |{" "}
             </nav>
             <hr />
         </header>
