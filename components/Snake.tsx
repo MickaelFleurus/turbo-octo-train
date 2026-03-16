@@ -1,7 +1,7 @@
-"use client"
-import React, { useState, useEffect, useCallback } from 'react';
+"use client";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 
-type Direction = 'UP' | 'DOWN' | 'LEFT' | 'RIGHT';
+type Direction = "UP" | "DOWN" | "LEFT" | "RIGHT" | "NONE";
 type Coordinate = [number, number];
 
 const GRID_SIZE = 20;
@@ -10,8 +10,8 @@ const CELL_SIZE = 20;
 const Snake: React.FC = () => {
     const [snake, setSnake] = useState<Coordinate[]>([[10, 10]]);
     const [food, setFood] = useState<Coordinate>([15, 15]);
-    const [direction, setDirection] = useState<Direction>('RIGHT');
-    const [nextDirection, setNextDirection] = useState<Direction>('RIGHT');
+    const [direction, setDirection] = useState<Direction>("RIGHT");
+    const nextDirection = useRef<Direction>("NONE");
     const [gameOver, setGameOver] = useState(false);
     const [score, setScore] = useState(0);
 
@@ -28,44 +28,54 @@ const Snake: React.FC = () => {
 
         const interval = setInterval(() => {
             setSnake((prevSnake) => {
-                // Use nextDirection and validate it's not opposite to current direction
                 let currentDirection = direction;
-                if (
-                    (direction === 'UP' && nextDirection !== 'DOWN') ||
-                    (direction === 'DOWN' && nextDirection !== 'UP') ||
-                    (direction === 'LEFT' && nextDirection !== 'RIGHT') ||
-                    (direction === 'RIGHT' && nextDirection !== 'LEFT')
-                ) {
-                    currentDirection = nextDirection;
-                    setDirection(nextDirection);
+                if (nextDirection.current !== "NONE") {
+                    currentDirection = nextDirection.current;
+                    setDirection(nextDirection.current);
+                    nextDirection.current = "NONE";
+                    console.log("Direction changed to:", currentDirection);
                 }
 
                 const head = prevSnake[0];
                 let newHead: Coordinate;
 
                 switch (currentDirection) {
-                    case 'UP':
+                    case "UP":
                         newHead = [head[0], head[1] - 1];
                         break;
-                    case 'DOWN':
+                    case "DOWN":
                         newHead = [head[0], head[1] + 1];
                         break;
-                    case 'LEFT':
+                    case "LEFT":
                         newHead = [head[0] - 1, head[1]];
                         break;
-                    case 'RIGHT':
+                    case "RIGHT":
                         newHead = [head[0] + 1, head[1]];
+                        break;
+                    default:
+                        newHead = head;
                         break;
                 }
 
                 // Check wall collision
-                if (newHead[0] < 0 || newHead[0] >= GRID_SIZE || newHead[1] < 0 || newHead[1] >= GRID_SIZE) {
+                if (
+                    newHead[0] < 0 ||
+                    newHead[0] >= GRID_SIZE ||
+                    newHead[1] < 0 ||
+                    newHead[1] >= GRID_SIZE
+                ) {
                     setGameOver(true);
                     return prevSnake;
                 }
 
                 // Check self collision
-                if (prevSnake.some((segment) => segment[0] === newHead[0] && segment[1] === newHead[1])) {
+                if (
+                    prevSnake.some(
+                        (segment) =>
+                            segment[0] === newHead[0] &&
+                            segment[1] === newHead[1],
+                    )
+                ) {
                     setGameOver(true);
                     return prevSnake;
                 }
@@ -84,42 +94,52 @@ const Snake: React.FC = () => {
         }, 300);
 
         return () => clearInterval(interval);
-    }, [direction, gameOver, food, generateFood, nextDirection]);
+    }, [direction, gameOver, food, generateFood]);
 
     // Handle keyboard input
     useEffect(() => {
         const handleKeyPress = (e: KeyboardEvent) => {
             switch (e.key) {
-                case 'ArrowUp':
-                    setNextDirection('UP');
+                case "ArrowUp":
+                    if (direction !== "DOWN" && direction !== "UP")
+                        nextDirection.current = "UP";
                     e.preventDefault();
                     break;
-                case 'ArrowDown':
-                    setNextDirection('DOWN');
+                case "ArrowDown":
+                    if (direction !== "UP" && direction !== "DOWN")
+                        nextDirection.current = "DOWN";
                     e.preventDefault();
                     break;
-                case 'ArrowLeft':
-                    setNextDirection('LEFT');
+                case "ArrowLeft":
+                    if (direction !== "RIGHT" && direction !== "LEFT")
+                        nextDirection.current = "LEFT";
                     e.preventDefault();
                     break;
-                case 'ArrowRight':
-                    setNextDirection('RIGHT');
+                case "ArrowRight":
+                    if (direction !== "LEFT" && direction !== "RIGHT")
+                        nextDirection.current = "RIGHT";
                     e.preventDefault();
                     break;
             }
-
-            console.log("Key down!");
+            console.log(
+                "Key pressed:",
+                e.key,
+                "Current direction:",
+                direction,
+                "Next direction:",
+                nextDirection.current,
+            );
         };
 
-        window.addEventListener('keydown', handleKeyPress);
-        return () => window.removeEventListener('keydown', handleKeyPress);
-    }, []);
+        window.addEventListener("keydown", handleKeyPress);
+        return () => window.removeEventListener("keydown", handleKeyPress);
+    }, [direction]);
 
     const resetGame = () => {
         setSnake([[10, 10]]);
         setFood([15, 15]);
-        setDirection('RIGHT');
-        setNextDirection('RIGHT');
+        setDirection("RIGHT");
+        nextDirection.current = "NONE";
         setGameOver(false);
         setScore(0);
     };
@@ -129,18 +149,25 @@ const Snake: React.FC = () => {
             <h1 className="text-4xl font-bold text-white mb-4">Snake Game</h1>
             <p className="text-xl text-white mb-4">Score: {score}</p>
 
-            <div className="relative border-4 border-white" style={{ width: GRID_SIZE * CELL_SIZE, height: GRID_SIZE * CELL_SIZE, backgroundColor: '#1a1a1a' }}>
+            <div
+                className="relative border border-white"
+                style={{
+                    width: GRID_SIZE * CELL_SIZE,
+                    height: GRID_SIZE * CELL_SIZE,
+                    backgroundColor: "#1a1a1a",
+                }}
+            >
                 {/* Snake */}
                 {snake.map((segment, idx) => (
                     <div
                         key={idx}
                         style={{
-                            position: 'absolute',
+                            position: "absolute",
                             left: segment[0] * CELL_SIZE,
                             top: segment[1] * CELL_SIZE,
                             width: CELL_SIZE,
                             height: CELL_SIZE,
-                            backgroundColor: idx === 0 ? '#00ff00' : '#00cc00',
+                            backgroundColor: idx === 0 ? "#00ff00" : "#00cc00",
                         }}
                     />
                 ))}
@@ -148,19 +175,21 @@ const Snake: React.FC = () => {
                 {/* Food */}
                 <div
                     style={{
-                        position: 'absolute',
+                        position: "absolute",
                         left: food[0] * CELL_SIZE,
                         top: food[1] * CELL_SIZE,
                         width: CELL_SIZE,
                         height: CELL_SIZE,
-                        backgroundColor: '#ff0000',
+                        backgroundColor: "#ff0000",
                     }}
                 />
             </div>
 
             {gameOver && (
                 <div className="mt-4 text-center">
-                    <p className="text-2xl text-red-500 mb-4">Game Over! Final Score: {score}</p>
+                    <p className="text-2xl text-red-500 mb-4">
+                        Game Over! Final Score: {score}
+                    </p>
                     <button
                         onClick={resetGame}
                         className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"

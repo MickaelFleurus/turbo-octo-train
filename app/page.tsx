@@ -1,15 +1,14 @@
 import Header from "@/components/Header";
-import StyledButton from "@/components/StyledButton"
-
+import StyledButton from "@/components/StyledButton";
 
 export default function Home() {
-  return (
-    <main style={{ padding: "2rem" }}>
-      <Header title="Hello! This is a test page." />
-      <p>Welcome to this test app. I am testing things.</p>
-      <StyledButton variant="danger" size="medium">
-        Click me
-      </StyledButton>
-    </main>
-  );
+    return (
+        <main className="">
+            <Header title="Mickaël Fleurus" />
+            <p>
+                Welcome to this page! It is under construction. I am building
+                games and other things in it. Hope you like it!
+            </p>
+        </main>
+    );
 }
